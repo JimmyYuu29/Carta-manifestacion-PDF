@@ -1,6 +1,8 @@
 """
 Main Streamlit Application - Carta de Manifestacion Generator
 Aplicacion principal de Streamlit - Generador de Cartas de Manifestacion
+With Authentication and User-based Download Options
+Con Autenticacion y Opciones de Descarga basadas en Usuario
 """
 
 import streamlit as st
@@ -19,6 +21,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from modules.plugin_loader import load_plugin
 from modules.generate import generate_from_form
 from modules.context_builder import format_spanish_date, parse_date_string
+from modules.auth import (
+    AccountType, User, verify_normal_account, verify_pro_account,
+    get_all_normal_accounts, get_user_permissions
+)
+from modules.file_hash import generate_file_hash, format_hash_for_display
+from modules.pdf_converter import convert_docx_to_pdf, get_pdf_conversion_status, PDFConversionError
 
 from ui.streamlit_app.state_store import (
     init_session_state,
@@ -29,6 +37,172 @@ from ui.streamlit_app.form_renderer import FormRenderer
 
 # Plugin configuration
 PLUGIN_ID = "carta_manifestacion"
+
+
+def init_auth_state():
+    """Initialize authentication state / Inicializar estado de autenticacion"""
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if 'user' not in st.session_state:
+        st.session_state.user = None
+    if 'account_type' not in st.session_state:
+        st.session_state.account_type = AccountType.NORMAL
+
+
+def render_login_sidebar():
+    """
+    Render login form in sidebar
+    Renderizar formulario de inicio de sesion en barra lateral
+    """
+    with st.sidebar:
+        st.markdown("## 🔐 Inicio de Sesion")
+        st.markdown("---")
+
+        # Account type selection
+        account_type_option = st.radio(
+            "Tipo de Cuenta",
+            options=["Cuenta Normal", "Cuenta Pro"],
+            key="account_type_radio",
+            help="Seleccione el tipo de cuenta para iniciar sesion"
+        )
+
+        st.session_state.account_type = (
+            AccountType.NORMAL if account_type_option == "Cuenta Normal"
+            else AccountType.PRO
+        )
+
+        st.markdown("---")
+
+        if st.session_state.account_type == AccountType.NORMAL:
+            # Normal account - username only
+            st.markdown("### Cuenta Normal")
+            st.info("Solo se requiere el usuario (correo electronico @forvismazars.es)")
+
+            # Show available accounts as hint
+            with st.expander("Ver cuentas disponibles"):
+                for account in get_all_normal_accounts():
+                    st.text(account)
+
+            username = st.text_input(
+                "Usuario (correo electronico)",
+                placeholder="ejemplo: juan.garcia@forvismazars.es",
+                key="normal_username"
+            )
+
+            if st.button("Iniciar Sesion", key="normal_login_btn", type="primary"):
+                if username:
+                    user = verify_normal_account(username)
+                    if user:
+                        st.session_state.authenticated = True
+                        st.session_state.user = user
+                        st.success(f"Bienvenido/a, {user.display_name}!")
+                        st.rerun()
+                    else:
+                        st.error("Usuario no encontrado. Verifique el correo electronico.")
+                else:
+                    st.warning("Por favor ingrese su usuario.")
+
+        else:
+            # Pro account - username and password
+            st.markdown("### Cuenta Pro")
+            st.info("Se requiere usuario y contrasena")
+
+            username = st.text_input(
+                "Usuario",
+                placeholder="admin o correo@forvismazars.com",
+                key="pro_username"
+            )
+
+            password = st.text_input(
+                "Contrasena",
+                type="password",
+                key="pro_password"
+            )
+
+            if st.button("Iniciar Sesion", key="pro_login_btn", type="primary"):
+                if username and password:
+                    user = verify_pro_account(username, password)
+                    if user:
+                        st.session_state.authenticated = True
+                        st.session_state.user = user
+                        st.success(f"Bienvenido/a, {user.display_name}!")
+                        st.rerun()
+                    else:
+                        st.error("Credenciales incorrectas.")
+                else:
+                    st.warning("Por favor ingrese usuario y contrasena.")
+
+        # Show current account type features
+        st.markdown("---")
+        st.markdown("### Caracteristicas")
+
+        if st.session_state.account_type == AccountType.NORMAL:
+            st.markdown("""
+            **Cuenta Normal:**
+            - Descarga en formato PDF
+            - Codigo hash de verificacion
+            - Exportar/Importar metadatos
+            """)
+        else:
+            st.markdown("""
+            **Cuenta Pro:**
+            - Descarga en formato PDF
+            - Descarga en formato Word
+            - Codigo hash de verificacion
+            - Exportar/Importar metadatos
+            - Acceso completo
+            """)
+
+
+def render_user_info_sidebar():
+    """
+    Render user info and logout in sidebar when authenticated
+    Renderizar info de usuario y cierre de sesion en barra lateral cuando autenticado
+    """
+    user = st.session_state.user
+
+    with st.sidebar:
+        st.markdown("## 👤 Usuario")
+        st.markdown("---")
+
+        # User info
+        st.markdown(f"**Nombre:** {user.display_name}")
+        st.markdown(f"**Tipo:** {'Pro' if user.account_type == AccountType.PRO else 'Normal'}")
+        if user.email:
+            st.markdown(f"**Email:** {user.email}")
+
+        # Permissions
+        permissions = get_user_permissions(user)
+        st.markdown("---")
+        st.markdown("### Permisos")
+
+        perm_labels = {
+            "can_download_pdf": "Descargar PDF",
+            "can_download_word": "Descargar Word",
+            "can_view_hash": "Ver Hash",
+            "can_export_metadata": "Exportar Metadatos",
+            "can_import_metadata": "Importar Metadatos"
+        }
+
+        for perm_key, perm_label in perm_labels.items():
+            status = "✅" if permissions.get(perm_key, False) else "❌"
+            st.markdown(f"{status} {perm_label}")
+
+        # PDF conversion status
+        st.markdown("---")
+        st.markdown("### Estado del Sistema")
+        pdf_status = get_pdf_conversion_status()
+        if pdf_status["pdf_conversion_available"]:
+            st.success("✅ Conversion PDF disponible")
+        else:
+            st.warning("⚠️ Conversion PDF no disponible (LibreOffice no instalado)")
+
+        # Logout button
+        st.markdown("---")
+        if st.button("🚪 Cerrar Sesion", key="logout_btn"):
+            st.session_state.authenticated = False
+            st.session_state.user = None
+            st.rerun()
 
 
 def process_uploaded_file(uploaded_file, file_type: str) -> dict:
@@ -157,15 +331,13 @@ def export_to_excel(data: dict) -> bytes:
     return output.getvalue()
 
 
-def main():
-    """Main application entry point / Punto de entrada principal"""
-
-    # Page configuration / Configuración de página
-    st.set_page_config(
-        page_title="Generador de Cartas de Manifestación",
-        page_icon="📄",
-        layout="wide"
-    )
+def render_main_form():
+    """
+    Render main form for data entry (only when authenticated)
+    Renderizar formulario principal para entrada de datos (solo cuando autenticado)
+    """
+    user = st.session_state.user
+    permissions = get_user_permissions(user)
 
     # Initialize session state
     init_session_state(PLUGIN_ID)
@@ -180,8 +352,8 @@ def main():
     # Create form renderer
     form_renderer = FormRenderer(plugin)
 
-    # Main title / Título principal
-    st.title("🏢 Generador de Cartas de Manifestación - Forvis Mazars")
+    # Main title / Titulo principal
+    st.title("🏢 Generador de Cartas de Manifestacion - Forvis Mazars")
     st.markdown("---")
 
     # Get template path
@@ -191,17 +363,17 @@ def main():
         template_path = plugin.get_template_path()
 
     if not template_path.exists():
-        st.error(f"⚠️ No se encontró el archivo de plantilla")
-        st.info("Por favor, asegúrate de que el archivo de plantilla esté en la carpeta correcta.")
+        st.error(f"⚠️ No se encontro el archivo de plantilla")
+        st.info("Por favor, asegurate de que el archivo de plantilla este en la carpeta correcta.")
         return
 
     # Template analysis message
     st.success(f"✅ Plantilla analizada correctamente.")
 
-    # Form subtitle / Subtítulo del formulario
-    st.subheader("📝 Información de la Carta")
+    # Form subtitle / Subtitulo del formulario
+    st.subheader("📝 Informacion de la Carta")
 
-    # Import section / Sección de importación
+    # Import section / Seccion de importacion
     st.markdown("---")
     st.subheader("📁 Importar Metadatos")
 
@@ -227,7 +399,7 @@ def main():
         uploaded_word = st.file_uploader(
             "Cargar archivo Word (.docx)",
             type=['docx'],
-            help="Formato: nombre_variable: valor (una por línea)",
+            help="Formato: nombre_variable: valor (una por linea)",
             key="word_upload"
         )
 
@@ -265,11 +437,11 @@ def main():
     cond_values = {}
 
     with col1:
-        # Office section / Sección de oficina
-        st.markdown("### 📋 Información de la Oficina")
+        # Office section / Seccion de oficina
+        st.markdown("### 📋 Informacion de la Oficina")
         var_values = form_renderer.render_oficina_section(var_values)
 
-        # Client section / Sección de cliente
+        # Client section / Seccion de cliente
         st.markdown("### 🏢 Nombre de cliente")
         var_values['Nombre_Cliente'] = st.text_input(
             "Nombre del Cliente",
@@ -277,7 +449,7 @@ def main():
             key="nombre_cliente"
         )
 
-        # Dates section / Sección de fechas
+        # Dates section / Seccion de fechas
         st.markdown("### 📅 Fechas")
 
         # Store dates as date objects for validation, formatting happens in context_builder
@@ -301,32 +473,32 @@ def main():
             fecha_cierre = datetime.now().date()
         var_values['Fecha_cierre'] = st.date_input("Fecha de Cierre", value=fecha_cierre, key="fecha_cierre")
 
-        # General info section / Sección de información general
-        st.markdown("### 📝 Información General")
+        # General info section / Seccion de informacion general
+        st.markdown("### 📝 Informacion General")
         var_values['Lista_Abogados'] = st.text_area(
             "Lista de abogados y asesores fiscales",
             value=var_values.get('Lista_Abogados', ''),
-            placeholder="Ej: Despacho ABC - Asesoría fiscal\nDespacho XYZ - Asesoría legal",
+            placeholder="Ej: Despacho ABC - Asesoria fiscal\nDespacho XYZ - Asesoria legal",
             key="abogados"
         )
         var_values['anexo_partes'] = st.text_input(
-            "Número anexo partes vinculadas",
+            "Numero anexo partes vinculadas",
             value=var_values.get('anexo_partes', '2'),
             key="anexo_partes"
         )
         var_values['anexo_proyecciones'] = st.text_input(
-            "Número anexo proyecciones",
+            "Numero anexo proyecciones",
             value=var_values.get('anexo_proyecciones', '3'),
             key="anexo_proyecciones"
         )
 
     with col2:
-        # Administration organ section / Sección órgano de administración
-        st.markdown("### 👥 Órgano de Administración")
+        # Administration organ section / Seccion organo de administracion
+        st.markdown("### 👥 Organo de Administracion")
         organo_options = ['consejo', 'administrador_unico', 'administradores']
         organo_labels = {
-            'consejo': 'Consejo de Administración',
-            'administrador_unico': 'Administrador Único',
+            'consejo': 'Consejo de Administracion',
+            'administrador_unico': 'Administrador Unico',
             'administradores': 'Administradores'
         }
         organo_default = var_values.get('organo', 'consejo')
@@ -334,92 +506,92 @@ def main():
             organo_default = 'consejo'
 
         cond_values['organo'] = st.selectbox(
-            "Tipo de Órgano de Administración",
+            "Tipo de Organo de Administracion",
             options=organo_options,
             index=organo_options.index(organo_default),
             format_func=lambda x: organo_labels.get(x, x),
             key="organo"
         )
 
-        # Conditional options section / Sección opciones condicionales
+        # Conditional options section / Seccion opciones condicionales
         st.markdown("### ✅ Opciones Condicionales")
 
-        cond_values['comision'] = 'sí' if st.checkbox(
-            "¿Existe Comisión de Auditoría?",
-            value=var_values.get('comision', False) if isinstance(var_values.get('comision'), bool) else var_values.get('comision') == 'sí',
+        cond_values['comision'] = 'si' if st.checkbox(
+            "Existe Comision de Auditoria?",
+            value=var_values.get('comision', False) if isinstance(var_values.get('comision'), bool) else var_values.get('comision') == 'si',
             key="comision"
         ) else 'no'
 
-        cond_values['junta'] = 'sí' if st.checkbox(
-            "¿Incluir Junta de Accionistas?",
-            value=var_values.get('junta', False) if isinstance(var_values.get('junta'), bool) else var_values.get('junta') == 'sí',
+        cond_values['junta'] = 'si' if st.checkbox(
+            "Incluir Junta de Accionistas?",
+            value=var_values.get('junta', False) if isinstance(var_values.get('junta'), bool) else var_values.get('junta') == 'si',
             key="junta"
         ) else 'no'
 
-        cond_values['comite'] = 'sí' if st.checkbox(
-            "¿Incluir Comité?",
-            value=var_values.get('comite', False) if isinstance(var_values.get('comite'), bool) else var_values.get('comite') == 'sí',
+        cond_values['comite'] = 'si' if st.checkbox(
+            "Incluir Comite?",
+            value=var_values.get('comite', False) if isinstance(var_values.get('comite'), bool) else var_values.get('comite') == 'si',
             key="comite"
         ) else 'no'
 
-        cond_values['incorreccion'] = 'sí' if st.checkbox(
-            "¿Hay incorrecciones no corregidas?",
-            value=var_values.get('incorreccion', False) if isinstance(var_values.get('incorreccion'), bool) else var_values.get('incorreccion') == 'sí',
+        cond_values['incorreccion'] = 'si' if st.checkbox(
+            "Hay incorrecciones no corregidas?",
+            value=var_values.get('incorreccion', False) if isinstance(var_values.get('incorreccion'), bool) else var_values.get('incorreccion') == 'si',
             key="incorreccion"
         ) else 'no'
 
-        if cond_values['incorreccion'] == 'sí':
+        if cond_values['incorreccion'] == 'si':
             with st.container():
                 st.markdown("##### 📌 Detalles de incorrecciones")
                 var_values['Anio_incorreccion'] = st.text_input(
-                    "Año de la incorrección",
+                    "Ano de la incorreccion",
                     value=var_values.get('Anio_incorreccion', ''),
                     key="anio_inc"
                 )
                 var_values['Epigrafe'] = st.text_input(
-                    "Epígrafe afectado",
+                    "Epigrafe afectado",
                     value=var_values.get('Epigrafe', ''),
                     key="epigrafe"
                 )
-                cond_values['limitacion_alcance'] = 'sí' if st.checkbox(
-                    "¿Hay limitación al alcance?",
-                    value=var_values.get('limitacion_alcance', False) if isinstance(var_values.get('limitacion_alcance'), bool) else var_values.get('limitacion_alcance') == 'sí',
+                cond_values['limitacion_alcance'] = 'si' if st.checkbox(
+                    "Hay limitacion al alcance?",
+                    value=var_values.get('limitacion_alcance', False) if isinstance(var_values.get('limitacion_alcance'), bool) else var_values.get('limitacion_alcance') == 'si',
                     key="limitacion"
                 ) else 'no'
-                if cond_values['limitacion_alcance'] == 'sí':
+                if cond_values['limitacion_alcance'] == 'si':
                     var_values['detalle_limitacion'] = st.text_area(
-                        "Detalle de la limitación",
+                        "Detalle de la limitacion",
                         value=var_values.get('detalle_limitacion', ''),
                         key="det_limitacion"
                     )
 
-        cond_values['dudas'] = 'sí' if st.checkbox(
-            "¿Existen dudas sobre empresa en funcionamiento?",
-            value=var_values.get('dudas', False) if isinstance(var_values.get('dudas'), bool) else var_values.get('dudas') == 'sí',
+        cond_values['dudas'] = 'si' if st.checkbox(
+            "Existen dudas sobre empresa en funcionamiento?",
+            value=var_values.get('dudas', False) if isinstance(var_values.get('dudas'), bool) else var_values.get('dudas') == 'si',
             key="dudas"
         ) else 'no'
 
-        cond_values['rent'] = 'sí' if st.checkbox(
-            "¿Incluir párrafo sobre arrendamientos?",
-            value=var_values.get('rent', False) if isinstance(var_values.get('rent'), bool) else var_values.get('rent') == 'sí',
+        cond_values['rent'] = 'si' if st.checkbox(
+            "Incluir parrafo sobre arrendamientos?",
+            value=var_values.get('rent', False) if isinstance(var_values.get('rent'), bool) else var_values.get('rent') == 'si',
             key="rent"
         ) else 'no'
 
-        cond_values['A_coste'] = 'sí' if st.checkbox(
-            "¿Hay activos valorados a coste en vez de valor razonable?",
-            value=var_values.get('A_coste', False) if isinstance(var_values.get('A_coste'), bool) else var_values.get('A_coste') == 'sí',
+        cond_values['A_coste'] = 'si' if st.checkbox(
+            "Hay activos valorados a coste en vez de valor razonable?",
+            value=var_values.get('A_coste', False) if isinstance(var_values.get('A_coste'), bool) else var_values.get('A_coste') == 'si',
             key="a_coste"
         ) else 'no'
 
-        cond_values['experto'] = 'sí' if st.checkbox(
-            "¿Se utilizó un experto independiente?",
-            value=var_values.get('experto', False) if isinstance(var_values.get('experto'), bool) else var_values.get('experto') == 'sí',
+        cond_values['experto'] = 'si' if st.checkbox(
+            "Se utilizo un experto independiente?",
+            value=var_values.get('experto', False) if isinstance(var_values.get('experto'), bool) else var_values.get('experto') == 'si',
             key="experto"
         ) else 'no'
 
-        if cond_values['experto'] == 'sí':
+        if cond_values['experto'] == 'si':
             with st.container():
-                st.markdown("##### 📌 Información del experto")
+                st.markdown("##### 📌 Informacion del experto")
                 var_values['nombre_experto'] = st.text_input(
                     "Nombre del experto",
                     value=var_values.get('nombre_experto', ''),
@@ -431,15 +603,15 @@ def main():
                     key="experto_val"
                 )
 
-        cond_values['unidad_decision'] = 'sí' if st.checkbox(
-            "¿Bajo la misma unidad de decisión?",
-            value=var_values.get('unidad_decision', False) if isinstance(var_values.get('unidad_decision'), bool) else var_values.get('unidad_decision') == 'sí',
+        cond_values['unidad_decision'] = 'si' if st.checkbox(
+            "Bajo la misma unidad de decision?",
+            value=var_values.get('unidad_decision', False) if isinstance(var_values.get('unidad_decision'), bool) else var_values.get('unidad_decision') == 'si',
             key="unidad_decision"
         ) else 'no'
 
-        if cond_values['unidad_decision'] == 'sí':
+        if cond_values['unidad_decision'] == 'si':
             with st.container():
-                st.markdown("##### 📌 Información de la unidad de decisión")
+                st.markdown("##### 📌 Informacion de la unidad de decision")
                 var_values['nombre_unidad'] = st.text_input(
                     "Nombre de la unidad",
                     value=var_values.get('nombre_unidad', ''),
@@ -451,66 +623,66 @@ def main():
                     key="nombre_mayor_sociedad"
                 )
                 var_values['localizacion_mer'] = st.text_input(
-                    "Localización o domiciliación mercantil",
+                    "Localizacion o domiciliacion mercantil",
                     value=var_values.get('localizacion_mer', ''),
                     key="localizacion_mer"
                 )
 
-        cond_values['activo_impuesto'] = 'sí' if st.checkbox(
-            "¿Hay activos por impuestos diferidos?",
-            value=var_values.get('activo_impuesto', False) if isinstance(var_values.get('activo_impuesto'), bool) else var_values.get('activo_impuesto') == 'sí',
+        cond_values['activo_impuesto'] = 'si' if st.checkbox(
+            "Hay activos por impuestos diferidos?",
+            value=var_values.get('activo_impuesto', False) if isinstance(var_values.get('activo_impuesto'), bool) else var_values.get('activo_impuesto') == 'si',
             key="activo_impuesto"
         ) else 'no'
 
-        if cond_values['activo_impuesto'] == 'sí':
+        if cond_values['activo_impuesto'] == 'si':
             with st.container():
-                st.markdown("##### 📌 Recuperación de activos")
+                st.markdown("##### 📌 Recuperacion de activos")
                 var_values['ejercicio_recuperacion_inicio'] = st.text_input(
-                    "Ejercicio inicio recuperación",
+                    "Ejercicio inicio recuperacion",
                     value=var_values.get('ejercicio_recuperacion_inicio', ''),
                     key="rec_inicio"
                 )
                 var_values['ejercicio_recuperacion_fin'] = st.text_input(
-                    "Ejercicio fin recuperación",
+                    "Ejercicio fin recuperacion",
                     value=var_values.get('ejercicio_recuperacion_fin', ''),
                     key="rec_fin"
                 )
 
-        cond_values['operacion_fiscal'] = 'sí' if st.checkbox(
-            "¿Operaciones en paraísos fiscales?",
-            value=var_values.get('operacion_fiscal', False) if isinstance(var_values.get('operacion_fiscal'), bool) else var_values.get('operacion_fiscal') == 'sí',
+        cond_values['operacion_fiscal'] = 'si' if st.checkbox(
+            "Operaciones en paraisos fiscales?",
+            value=var_values.get('operacion_fiscal', False) if isinstance(var_values.get('operacion_fiscal'), bool) else var_values.get('operacion_fiscal') == 'si',
             key="operacion_fiscal"
         ) else 'no'
 
-        if cond_values['operacion_fiscal'] == 'sí':
+        if cond_values['operacion_fiscal'] == 'si':
             with st.container():
                 st.markdown("##### 📌 Detalle operaciones")
                 var_values['detalle_operacion_fiscal'] = st.text_area(
-                    "Detalle operaciones paraísos fiscales",
+                    "Detalle operaciones paraisos fiscales",
                     value=var_values.get('detalle_operacion_fiscal', ''),
                     key="det_fiscal"
                 )
 
-        cond_values['compromiso'] = 'sí' if st.checkbox(
-            "¿Compromisos por pensiones?",
-            value=var_values.get('compromiso', False) if isinstance(var_values.get('compromiso'), bool) else var_values.get('compromiso') == 'sí',
+        cond_values['compromiso'] = 'si' if st.checkbox(
+            "Compromisos por pensiones?",
+            value=var_values.get('compromiso', False) if isinstance(var_values.get('compromiso'), bool) else var_values.get('compromiso') == 'si',
             key="compromiso"
         ) else 'no'
 
-        cond_values['gestion'] = 'sí' if st.checkbox(
-            "¿Incluir informe de gestión?",
-            value=var_values.get('gestion', False) if isinstance(var_values.get('gestion'), bool) else var_values.get('gestion') == 'sí',
+        cond_values['gestion'] = 'si' if st.checkbox(
+            "Incluir informe de gestion?",
+            value=var_values.get('gestion', False) if isinstance(var_values.get('gestion'), bool) else var_values.get('gestion') == 'si',
             key="gestion"
         ) else 'no'
 
-    # Directors section / Sección alta dirección
+    # Directors section / Seccion alta direccion
     st.markdown("---")
-    st.markdown("### 👔 Alta Dirección")
+    st.markdown("### 👔 Alta Direccion")
 
-    st.info("Introduce los nombres y cargos de los altos directivos. Estos reemplazarán completamente el ejemplo en la plantilla.")
+    st.info("Introduce los nombres y cargos de los altos directivos. Estos reemplazaran completamente el ejemplo en la plantilla.")
 
     num_directivos = st.number_input(
-        "Número de altos directivos",
+        "Numero de altos directivos",
         min_value=0,
         max_value=10,
         value=2,
@@ -534,7 +706,7 @@ def main():
 
     var_values['lista_alto_directores'] = directivos_list
 
-    # Signature section / Sección persona de firma
+    # Signature section / Seccion persona de firma
     st.markdown("---")
     st.markdown("### 👥 Persona de firma")
 
@@ -557,9 +729,9 @@ def main():
     # Update session state
     st.session_state.form_data = {**var_values, **cond_values}
 
-    # Automatic review section / Sección de revisión automática
+    # Automatic review section / Seccion de revision automatica
     st.markdown("---")
-    st.header("🔍 Revisión automática")
+    st.header("🔍 Revision automatica")
 
     # Required fields validation
     required_fields = ['Nombre_Cliente', 'Direccion_Oficina', 'CP', 'Ciudad_Oficina']
@@ -571,11 +743,11 @@ def main():
 
     # Inform user about validation status
     if not missing_fields:
-        st.success("✅ Todas las variables y condiciones están completas.")
+        st.success("✅ Todas las variables y condiciones estan completas.")
     else:
         st.warning(f"⚠️ Faltan {len(missing_fields)} campos obligatorios: {', '.join(missing_fields)}")
 
-    # Export metadata section / Sección exportar metadatos
+    # Export metadata section / Seccion exportar metadatos
     st.markdown("---")
     st.subheader("💾 Exportar Metadatos")
     st.info("Exporta los datos del formulario para usarlos posteriormente o compartirlos.")
@@ -612,10 +784,10 @@ def main():
             help="Descarga los metadatos en formato Excel"
         )
 
-    # Generate button / Botón de generación
+    # Generate button / Boton de generacion
     st.markdown("---")
 
-    if st.button("🚀 Generar Carta de Manifestación", type="primary"):
+    if st.button("🚀 Generar Carta de Manifestacion", type="primary"):
         if missing_fields:
             st.error(f"⚠️ Por favor completa los siguientes campos obligatorios: {', '.join(missing_fields)}")
         else:
@@ -636,38 +808,156 @@ def main():
                     if result.success and result.output_path:
                         st.success("✅ Carta generada exitosamente!")
 
-                        # Display trace code
-                        st.markdown("### 🔖 Código de Traza")
-                        st.code(result.trace_id, language=None)
-                        st.caption("Este código identifica de forma única este documento generado. Guárdelo para referencia futura.")
+                        # Generate file hash
+                        creation_time = datetime.now()
+                        hash_info = generate_file_hash(
+                            file_path=result.output_path,
+                            creation_time=creation_time,
+                            user_id=user.username,
+                            client_name=var_values.get('Nombre_Cliente', '')
+                        )
+
+                        # Display trace code and hash
+                        st.markdown("### 🔖 Codigo de Traza y Hash")
+
+                        col_trace, col_hash = st.columns(2)
+
+                        with col_trace:
+                            st.markdown("**Codigo de Traza:**")
+                            st.code(result.trace_id, language=None)
+                            st.caption("Este codigo identifica de forma unica este documento generado.")
+
+                        with col_hash:
+                            st.markdown("**Codigo Hash de Verificacion:**")
+                            st.code(hash_info.hash_code, language=None)
+                            st.caption("Este hash verifica la integridad del documento.")
+
+                        # Expandable hash details
+                        with st.expander("Ver detalles completos del hash"):
+                            st.text(format_hash_for_display(hash_info))
+                            st.markdown("---")
+                            st.markdown("**Hash completo de contenido:**")
+                            st.code(hash_info.content_hash, language=None)
+                            st.markdown("**Hash combinado completo:**")
+                            st.code(hash_info.combined_hash, language=None)
 
                         # Display generation info
-                        st.info(f"⏱️ Tiempo de generación: {result.duration_ms}ms")
+                        st.info(f"⏱️ Tiempo de generacion: {result.duration_ms}ms | Usuario: {user.display_name}")
 
                         # Read generated file
                         with open(result.output_path, 'rb') as f:
                             doc_bytes = f.read()
 
-                        filename = f"Carta_Manifestacion_{var_values['Nombre_Cliente'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}_{result.trace_id[:8]}.docx"
+                        base_filename = f"Carta_Manifestacion_{var_values['Nombre_Cliente'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}_{hash_info.hash_code[:8]}"
 
-                        st.download_button(
-                            label="📥 Descargar Carta de Manifestación",
-                            data=doc_bytes,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
+                        # Download section based on user permissions
+                        st.markdown("### 📥 Descargar Documento")
+
+                        download_cols = st.columns(2 if permissions["can_download_word"] else 1)
+
+                        # PDF download (available for all users)
+                        with download_cols[0]:
+                            st.markdown("**Formato PDF (Impresion)**")
+
+                            pdf_status = get_pdf_conversion_status()
+                            if pdf_status["pdf_conversion_available"]:
+                                try:
+                                    # Convert to PDF
+                                    pdf_path = convert_docx_to_pdf(result.output_path)
+                                    with open(pdf_path, 'rb') as f:
+                                        pdf_bytes = f.read()
+
+                                    st.download_button(
+                                        label="📄 Descargar PDF",
+                                        data=pdf_bytes,
+                                        file_name=f"{base_filename}.pdf",
+                                        mime="application/pdf",
+                                        key="download_pdf"
+                                    )
+                                except PDFConversionError as e:
+                                    st.error(f"Error al convertir a PDF: {str(e)}")
+                                    st.info("Puede descargar el archivo Word en su lugar.")
+                            else:
+                                st.warning("⚠️ Conversion a PDF no disponible. LibreOffice no esta instalado.")
+                                st.info("Contacte al administrador para habilitar la descarga en PDF.")
+
+                        # Word download (only for Pro users)
+                        if permissions["can_download_word"]:
+                            with download_cols[1]:
+                                st.markdown("**Formato Word (Editable)**")
+                                st.download_button(
+                                    label="📝 Descargar Word",
+                                    data=doc_bytes,
+                                    file_name=f"{base_filename}.docx",
+                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                    key="download_word"
+                                )
+                        else:
+                            st.info("💡 Los usuarios Pro pueden descargar tambien en formato Word editable.")
+
                     else:
                         st.error(f"❌ Error al generar la carta: {result.error}")
                         if result.validation_errors:
-                            st.markdown("### Errores de validación:")
+                            st.markdown("### Errores de validacion:")
                             for err in result.validation_errors:
                                 st.warning(err)
                         # Also show trace code for failed generations
-                        st.caption(f"Código de traza: {result.trace_id}")
+                        st.caption(f"Codigo de traza: {result.trace_id}")
 
                 except Exception as e:
                     st.error(f"❌ Error al generar la carta: {str(e)}")
                     st.exception(e)
+
+
+def main():
+    """Main application entry point / Punto de entrada principal"""
+
+    # Page configuration / Configuracion de pagina
+    st.set_page_config(
+        page_title="Generador de Cartas de Manifestacion",
+        page_icon="📄",
+        layout="wide"
+    )
+
+    # Initialize authentication state
+    init_auth_state()
+
+    # Check if user is authenticated
+    if not st.session_state.authenticated:
+        # Show login form
+        render_login_sidebar()
+
+        # Show welcome message in main area
+        st.title("🏢 Generador de Cartas de Manifestacion")
+        st.markdown("### Forvis Mazars")
+        st.markdown("---")
+
+        st.info("👈 Por favor, inicie sesion en la barra lateral para acceder al generador de documentos.")
+
+        st.markdown("""
+        ### Bienvenido al Sistema de Generacion de Cartas de Manifestacion
+
+        Este sistema permite generar cartas de manifestacion de forma automatizada
+        utilizando plantillas predefinidas.
+
+        **Tipos de cuenta:**
+
+        | Caracteristica | Cuenta Normal | Cuenta Pro |
+        |---------------|---------------|------------|
+        | Descarga PDF | ✅ | ✅ |
+        | Descarga Word | ❌ | ✅ |
+        | Hash de verificacion | ✅ | ✅ |
+        | Importar/Exportar datos | ✅ | ✅ |
+
+        Para comenzar, seleccione su tipo de cuenta e inicie sesion.
+        """)
+
+    else:
+        # Show user info in sidebar
+        render_user_info_sidebar()
+
+        # Show main form
+        render_main_form()
 
 
 if __name__ == "__main__":
