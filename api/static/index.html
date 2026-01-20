@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Cartas de Manifestacion - Forvis Mazars</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-content">
+                <div class="logo-section">
+                    <h2>Forvis Mazars</h2>
+                </div>
+
+                <!-- Login Section (shown when not authenticated) -->
+                <div id="login-section" class="login-section">
+                    <h3>Inicio de Sesion</h3>
+                    <hr>
+
+                    <div class="form-group">
+                        <label>Tipo de Cuenta</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="account_type" value="normal" checked onchange="toggleAccountType()">
+                                Cuenta Normal
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="account_type" value="pro" onchange="toggleAccountType()">
+                                Cuenta Pro
+                            </label>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div id="normal-login" class="login-form">
+                        <h4>Cuenta Normal</h4>
+                        <p class="info-text">Solo se requiere el usuario (correo electronico @forvismazars.es)</p>
+
+                        <details class="accounts-hint">
+                            <summary>Ver cuentas disponibles</summary>
+                            <div id="normal-accounts-list" class="accounts-list"></div>
+                        </details>
+
+                        <div class="form-group">
+                            <label for="normal-username">Usuario (correo electronico)</label>
+                            <input type="text" id="normal-username" placeholder="ejemplo: juan.garcia@forvismazars.es">
+                        </div>
+
+                        <button class="btn btn-primary" onclick="loginNormal()">Iniciar Sesion</button>
+                    </div>
+
+                    <div id="pro-login" class="login-form" style="display: none;">
+                        <h4>Cuenta Pro</h4>
+                        <p class="info-text">Se requiere usuario y contrasena</p>
+
+                        <div class="form-group">
+                            <label for="pro-username">Usuario</label>
+                            <input type="text" id="pro-username" placeholder="admin o correo@forvismazars.com">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pro-password">Contrasena</label>
+                            <input type="password" id="pro-password">
+                        </div>
+
+                        <button class="btn btn-primary" onclick="loginPro()">Iniciar Sesion</button>
+                    </div>
+
+                    <hr>
+
+                    <div class="features-section">
+                        <h4>Caracteristicas</h4>
+                        <div id="features-normal" class="features-list">
+                            <p><strong>Cuenta Normal:</strong></p>
+                            <ul>
+                                <li>Descarga en formato PDF</li>
+                                <li>Codigo hash de verificacion</li>
+                                <li>Exportar/Importar metadatos</li>
+                            </ul>
+                        </div>
+                        <div id="features-pro" class="features-list" style="display: none;">
+                            <p><strong>Cuenta Pro:</strong></p>
+                            <ul>
+                                <li>Descarga en formato PDF</li>
+                                <li>Descarga en formato Word</li>
+                                <li>Codigo hash de verificacion</li>
+                                <li>Exportar/Importar metadatos</li>
+                                <li>Acceso completo</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Info Section (shown when authenticated) -->
+                <div id="user-section" class="user-section" style="display: none;">
+                    <h3>Usuario</h3>
+                    <hr>
+
+                    <div class="user-info">
+                        <p><strong>Nombre:</strong> <span id="user-display-name"></span></p>
+                        <p><strong>Tipo:</strong> <span id="user-type"></span></p>
+                        <p><strong>Email:</strong> <span id="user-email"></span></p>
+                    </div>
+
+                    <hr>
+
+                    <div class="permissions-section">
+                        <h4>Permisos</h4>
+                        <div id="permissions-list" class="permissions-list"></div>
+                    </div>
+
+                    <hr>
+
+                    <div class="system-status">
+                        <h4>Estado del Sistema</h4>
+                        <div id="system-status"></div>
+                    </div>
+
+                    <hr>
+
+                    <button class="btn btn-secondary" onclick="logout()">Cerrar Sesion</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Welcome Screen (shown when not authenticated) -->
+            <div id="welcome-screen" class="welcome-screen">
+                <h1>Generador de Cartas de Manifestacion</h1>
+                <h2>Forvis Mazars</h2>
+                <hr>
+
+                <div class="info-box">
+                    <p>Por favor, inicie sesion en la barra lateral para acceder al generador de documentos.</p>
+                </div>
+
+                <div class="welcome-content">
+                    <h3>Bienvenido al Sistema de Generacion de Cartas de Manifestacion</h3>
+                    <p>Este sistema permite generar cartas de manifestacion de forma automatizada utilizando plantillas predefinidas.</p>
+
+                    <h4>Tipos de cuenta:</h4>
+                    <table class="features-table">
+                        <thead>
+                            <tr>
+                                <th>Caracteristica</th>
+                                <th>Cuenta Normal</th>
+                                <th>Cuenta Pro</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Descarga PDF</td>
+                                <td class="check">&#10004;</td>
+                                <td class="check">&#10004;</td>
+                            </tr>
+                            <tr>
+                                <td>Descarga Word</td>
+                                <td class="cross">&#10008;</td>
+                                <td class="check">&#10004;</td>
+                            </tr>
+                            <tr>
+                                <td>Hash de verificacion</td>
+                                <td class="check">&#10004;</td>
+                                <td class="check">&#10004;</td>
+                            </tr>
+                            <tr>
+                                <td>Importar/Exportar datos</td>
+                                <td class="check">&#10004;</td>
+                                <td class="check">&#10004;</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p>Para comenzar, seleccione su tipo de cuenta e inicie sesion.</p>
+                </div>
+            </div>
+
+            <!-- Main Form (shown when authenticated) -->
+            <div id="main-form" class="main-form" style="display: none;">
+                <h1>Generador de Cartas de Manifestacion - Forvis Mazars</h1>
+                <hr>
+
+                <div id="template-status" class="success-box">
+                    Plantilla analizada correctamente.
+                </div>
+
+                <h2>Informacion de la Carta</h2>
+
+                <!-- Form Container -->
+                <form id="document-form">
+                    <div class="form-grid">
+                        <!-- Left Column -->
+                        <div class="form-column">
+                            <h3>Informacion de la Oficina</h3>
+
+                            <div class="form-group">
+                                <label for="Direccion_Oficina">Direccion de la Oficina *</label>
+                                <input type="text" id="Direccion_Oficina" name="Direccion_Oficina" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="CP">Codigo Postal *</label>
+                                <input type="text" id="CP" name="CP" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="Ciudad_Oficina">Ciudad *</label>
+                                <input type="text" id="Ciudad_Oficina" name="Ciudad_Oficina" required>
+                            </div>
+
+                            <h3>Nombre de Cliente</h3>
+
+                            <div class="form-group">
+                                <label for="Nombre_Cliente">Nombre del Cliente *</label>
+                                <input type="text" id="Nombre_Cliente" name="Nombre_Cliente" required>
+                            </div>
+
+                            <h3>Fechas</h3>
+
+                            <div class="form-group">
+                                <label for="Fecha_de_hoy">Fecha de Hoy</label>
+                                <input type="date" id="Fecha_de_hoy" name="Fecha_de_hoy">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="Fecha_encargo">Fecha del Encargo</label>
+                                <input type="date" id="Fecha_encargo" name="Fecha_encargo">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="FF_Ejecicio">Fecha Fin del Ejercicio</label>
+                                <input type="date" id="FF_Ejecicio" name="FF_Ejecicio">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="Fecha_cierre">Fecha de Cierre</label>
+                                <input type="date" id="Fecha_cierre" name="Fecha_cierre">
+                            </div>
+
+                            <h3>Informacion General</h3>
+
+                            <div class="form-group">
+                                <label for="Lista_Abogados">Lista de abogados y asesores fiscales</label>
+                                <textarea id="Lista_Abogados" name="Lista_Abogados" rows="3" placeholder="Ej: Despacho ABC - Asesoria fiscal"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="anexo_partes">Numero anexo partes vinculadas</label>
+                                <input type="text" id="anexo_partes" name="anexo_partes" value="2">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="anexo_proyecciones">Numero anexo proyecciones</label>
+                                <input type="text" id="anexo_proyecciones" name="anexo_proyecciones" value="3">
+                            </div>
+                        </div>
+
+                        <!-- Right Column -->
+                        <div class="form-column">
+                            <h3>Organo de Administracion</h3>
+
+                            <div class="form-group">
+                                <label for="organo">Tipo de Organo de Administracion</label>
+                                <select id="organo" name="organo">
+                                    <option value="consejo">Consejo de Administracion</option>
+                                    <option value="administrador_unico">Administrador Unico</option>
+                                    <option value="administradores">Administradores</option>
+                                </select>
+                            </div>
+
+                            <h3>Opciones Condicionales</h3>
+
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="comision" name="comision">
+                                    Existe Comision de Auditoria?
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="junta" name="junta">
+                                    Incluir Junta de Accionistas?
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="comite" name="comite">
+                                    Incluir Comite?
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="incorreccion" name="incorreccion" onchange="toggleConditionalSection('incorreccion')">
+                                    Hay incorrecciones no corregidas?
+                                </label>
+
+                                <div id="incorreccion-details" class="conditional-section" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="Anio_incorreccion">Ano de la incorreccion</label>
+                                        <input type="text" id="Anio_incorreccion" name="Anio_incorreccion">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="Epigrafe">Epigrafe afectado</label>
+                                        <input type="text" id="Epigrafe" name="Epigrafe">
+                                    </div>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="limitacion_alcance" name="limitacion_alcance" onchange="toggleConditionalSection('limitacion_alcance')">
+                                        Hay limitacion al alcance?
+                                    </label>
+                                    <div id="limitacion_alcance-details" class="conditional-section" style="display: none;">
+                                        <div class="form-group">
+                                            <label for="detalle_limitacion">Detalle de la limitacion</label>
+                                            <textarea id="detalle_limitacion" name="detalle_limitacion" rows="2"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="dudas" name="dudas">
+                                    Existen dudas sobre empresa en funcionamiento?
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="rent" name="rent">
+                                    Incluir parrafo sobre arrendamientos?
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="A_coste" name="A_coste">
+                                    Hay activos valorados a coste en vez de valor razonable?
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="experto" name="experto" onchange="toggleConditionalSection('experto')">
+                                    Se utilizo un experto independiente?
+                                </label>
+
+                                <div id="experto-details" class="conditional-section" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="nombre_experto">Nombre del experto</label>
+                                        <input type="text" id="nombre_experto" name="nombre_experto">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="experto_valoracion">Elemento valorado por experto</label>
+                                        <input type="text" id="experto_valoracion" name="experto_valoracion">
+                                    </div>
+                                </div>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="unidad_decision" name="unidad_decision" onchange="toggleConditionalSection('unidad_decision')">
+                                    Bajo la misma unidad de decision?
+                                </label>
+
+                                <div id="unidad_decision-details" class="conditional-section" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="nombre_unidad">Nombre de la unidad</label>
+                                        <input type="text" id="nombre_unidad" name="nombre_unidad">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="nombre_mayor_sociedad">Nombre de la mayor sociedad</label>
+                                        <input type="text" id="nombre_mayor_sociedad" name="nombre_mayor_sociedad">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="localizacion_mer">Localizacion o domiciliacion mercantil</label>
+                                        <input type="text" id="localizacion_mer" name="localizacion_mer">
+                                    </div>
+                                </div>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="activo_impuesto" name="activo_impuesto" onchange="toggleConditionalSection('activo_impuesto')">
+                                    Hay activos por impuestos diferidos?
+                                </label>
+
+                                <div id="activo_impuesto-details" class="conditional-section" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="ejercicio_recuperacion_inicio">Ejercicio inicio recuperacion</label>
+                                        <input type="text" id="ejercicio_recuperacion_inicio" name="ejercicio_recuperacion_inicio">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ejercicio_recuperacion_fin">Ejercicio fin recuperacion</label>
+                                        <input type="text" id="ejercicio_recuperacion_fin" name="ejercicio_recuperacion_fin">
+                                    </div>
+                                </div>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="operacion_fiscal" name="operacion_fiscal" onchange="toggleConditionalSection('operacion_fiscal')">
+                                    Operaciones en paraisos fiscales?
+                                </label>
+
+                                <div id="operacion_fiscal-details" class="conditional-section" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="detalle_operacion_fiscal">Detalle operaciones paraisos fiscales</label>
+                                        <textarea id="detalle_operacion_fiscal" name="detalle_operacion_fiscal" rows="2"></textarea>
+                                    </div>
+                                </div>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="compromiso" name="compromiso">
+                                    Compromisos por pensiones?
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="gestion" name="gestion">
+                                    Incluir informe de gestion?
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Directors Section -->
+                    <hr>
+                    <h3>Alta Direccion</h3>
+                    <p class="info-text">Introduce los nombres y cargos de los altos directivos.</p>
+
+                    <div class="form-group">
+                        <label for="num_directivos">Numero de altos directivos</label>
+                        <input type="number" id="num_directivos" min="0" max="10" value="2" onchange="updateDirectorsFields()">
+                    </div>
+
+                    <div id="directors-container" class="directors-container"></div>
+
+                    <!-- Signature Section -->
+                    <hr>
+                    <h3>Persona de Firma</h3>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="Nombre_Firma">Nombre del firmante</label>
+                            <input type="text" id="Nombre_Firma" name="Nombre_Firma">
+                        </div>
+                        <div class="form-group">
+                            <label for="Cargo_Firma">Cargo del firmante</label>
+                            <input type="text" id="Cargo_Firma" name="Cargo_Firma">
+                        </div>
+                    </div>
+
+                    <!-- Generate Button -->
+                    <hr>
+                    <button type="submit" class="btn btn-primary btn-large">Generar Carta de Manifestacion</button>
+                </form>
+
+                <!-- Results Section -->
+                <div id="results-section" class="results-section" style="display: none;">
+                    <hr>
+                    <h3>Resultado de la Generacion</h3>
+
+                    <div id="result-message"></div>
+
+                    <div id="hash-info" class="hash-info" style="display: none;">
+                        <div class="hash-grid">
+                            <div class="hash-card">
+                                <h4>Codigo de Traza</h4>
+                                <code id="trace-id"></code>
+                                <p class="caption">Este codigo identifica de forma unica este documento generado.</p>
+                            </div>
+                            <div class="hash-card">
+                                <h4>Codigo Hash de Verificacion</h4>
+                                <code id="hash-code"></code>
+                                <p class="caption">Este hash verifica la integridad del documento.</p>
+                            </div>
+                        </div>
+
+                        <details class="hash-details">
+                            <summary>Ver detalles completos del hash</summary>
+                            <pre id="hash-full-details"></pre>
+                        </details>
+
+                        <div id="generation-info" class="generation-info"></div>
+                    </div>
+
+                    <div id="download-section" class="download-section" style="display: none;">
+                        <h4>Descargar Documento</h4>
+                        <div id="download-buttons" class="download-buttons"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p>Procesando...</p>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

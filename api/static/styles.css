@@ -1,0 +1,664 @@
+/*
+ * Carta de Manifestacion Generator - CSS Styles
+ * Inspired by Streamlit's clean and professional design
+ */
+
+/* ==================== CSS Variables ==================== */
+:root {
+    --primary-color: #ff4b4b;
+    --primary-hover: #ff6b6b;
+    --secondary-color: #f0f2f6;
+    --text-color: #262730;
+    --text-secondary: #6b7280;
+    --border-color: #e0e0e0;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --error-color: #dc3545;
+    --info-color: #17a2b8;
+    --sidebar-width: 300px;
+    --sidebar-bg: #ffffff;
+    --main-bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-hover: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --transition: all 0.2s ease;
+}
+
+/* ==================== Reset & Base ==================== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--main-bg);
+}
+
+/* ==================== App Container ==================== */
+.app-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* ==================== Sidebar ==================== */
+.sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 100;
+}
+
+.sidebar-content {
+    padding: 1.5rem;
+}
+
+.logo-section {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.logo-section h2 {
+    color: var(--primary-color);
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+/* ==================== Main Content ==================== */
+.main-content {
+    flex: 1;
+    margin-left: var(--sidebar-width);
+    padding: 2rem 3rem;
+    max-width: calc(100% - var(--sidebar-width));
+}
+
+/* ==================== Typography ==================== */
+h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--text-color);
+}
+
+h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--text-color);
+}
+
+h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1.5rem 0;
+}
+
+/* ==================== Form Elements ==================== */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+textarea,
+select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    background-color: white;
+    transition: var(--transition);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(255, 75, 75, 0.2);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* ==================== Checkbox & Radio ==================== */
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.checkbox-label,
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+.checkbox-label input,
+.radio-label input {
+    width: auto;
+    margin: 0;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* ==================== Buttons ==================== */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: var(--transition);
+    text-decoration: none;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+}
+
+.btn-secondary:hover {
+    background-color: #e0e2e6;
+}
+
+.btn-large {
+    padding: 0.75rem 2rem;
+    font-size: 1.1rem;
+    width: 100%;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ==================== Form Grid ==================== */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+}
+
+.form-column {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ==================== Info & Alert Boxes ==================== */
+.info-box {
+    background-color: #e8f4f8;
+    border-left: 4px solid var(--info-color);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+}
+
+.success-box {
+    background-color: #d4edda;
+    border-left: 4px solid var(--success-color);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+}
+
+.warning-box {
+    background-color: #fff3cd;
+    border-left: 4px solid var(--warning-color);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+}
+
+.error-box {
+    background-color: #f8d7da;
+    border-left: 4px solid var(--error-color);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+}
+
+.info-text {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+/* ==================== Welcome Screen ==================== */
+.welcome-screen {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.welcome-content {
+    background-color: var(--card-bg);
+    padding: 2rem;
+    border-radius: 0.5rem;
+    box-shadow: var(--shadow);
+    margin-top: 1rem;
+}
+
+.features-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+}
+
+.features-table th,
+.features-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.features-table th {
+    background-color: var(--secondary-color);
+    font-weight: 600;
+}
+
+.features-table .check {
+    color: var(--success-color);
+    font-weight: bold;
+}
+
+.features-table .cross {
+    color: var(--error-color);
+    font-weight: bold;
+}
+
+/* ==================== Login Section ==================== */
+.login-section h3 {
+    font-size: 1.1rem;
+}
+
+.login-form {
+    margin-top: 1rem;
+}
+
+.accounts-hint {
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.accounts-hint summary {
+    cursor: pointer;
+    color: var(--info-color);
+}
+
+.accounts-list {
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    background-color: var(--secondary-color);
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+    font-family: monospace;
+}
+
+.accounts-list div {
+    padding: 0.25rem 0;
+}
+
+.features-section {
+    margin-top: 1rem;
+}
+
+.features-list {
+    font-size: 0.9rem;
+}
+
+.features-list ul {
+    padding-left: 1.5rem;
+    margin-top: 0.5rem;
+}
+
+.features-list li {
+    margin-bottom: 0.25rem;
+}
+
+/* ==================== User Section ==================== */
+.user-section {
+    font-size: 0.9rem;
+}
+
+.user-info p {
+    margin-bottom: 0.25rem;
+}
+
+.permissions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.permissions-list .permission-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.system-status {
+    font-size: 0.85rem;
+}
+
+/* ==================== Directors Section ==================== */
+.directors-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.director-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    padding: 1rem;
+    background-color: var(--secondary-color);
+    border-radius: 0.375rem;
+}
+
+/* ==================== Conditional Sections ==================== */
+.conditional-section {
+    margin-left: 1.5rem;
+    padding: 1rem;
+    background-color: var(--secondary-color);
+    border-radius: 0.375rem;
+    margin-top: 0.5rem;
+}
+
+/* ==================== Results Section ==================== */
+.results-section {
+    margin-top: 2rem;
+}
+
+.hash-info {
+    margin-top: 1rem;
+}
+
+.hash-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.hash-card {
+    background-color: var(--card-bg);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    box-shadow: var(--shadow);
+}
+
+.hash-card h4 {
+    margin-bottom: 0.5rem;
+}
+
+.hash-card code {
+    display: block;
+    padding: 0.5rem;
+    background-color: var(--secondary-color);
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.85rem;
+    word-break: break-all;
+}
+
+.hash-card .caption {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.hash-details {
+    margin-top: 1rem;
+}
+
+.hash-details summary {
+    cursor: pointer;
+    color: var(--info-color);
+    font-weight: 600;
+}
+
+.hash-details pre {
+    background-color: var(--secondary-color);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+}
+
+.generation-info {
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #e8f4f8;
+    border-radius: 0.375rem;
+}
+
+/* ==================== Download Section ==================== */
+.download-section {
+    margin-top: 1.5rem;
+}
+
+.download-buttons {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: var(--transition);
+    text-decoration: none;
+}
+
+.download-btn-pdf {
+    background-color: #dc3545;
+    color: white;
+}
+
+.download-btn-pdf:hover {
+    background-color: #c82333;
+}
+
+.download-btn-word {
+    background-color: #2b5797;
+    color: white;
+}
+
+.download-btn-word:hover {
+    background-color: #1e3f6f;
+}
+
+/* ==================== Loading Overlay ==================== */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ==================== Toast Notifications ==================== */
+.toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.toast {
+    padding: 1rem 1.5rem;
+    border-radius: 0.375rem;
+    box-shadow: var(--shadow-hover);
+    animation: slideIn 0.3s ease;
+    max-width: 350px;
+}
+
+.toast-success {
+    background-color: #d4edda;
+    border-left: 4px solid var(--success-color);
+}
+
+.toast-error {
+    background-color: #f8d7da;
+    border-left: 4px solid var(--error-color);
+}
+
+.toast-warning {
+    background-color: #fff3cd;
+    border-left: 4px solid var(--warning-color);
+}
+
+.toast-info {
+    background-color: #e8f4f8;
+    border-left: 4px solid var(--info-color);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ==================== Responsive Design ==================== */
+@media (max-width: 1024px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hash-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        position: relative;
+        height: auto;
+    }
+
+    .main-content {
+        margin-left: 0;
+        max-width: 100%;
+        padding: 1rem;
+    }
+
+    .app-container {
+        flex-direction: column;
+    }
+
+    .director-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==================== Scrollbar ==================== */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--secondary-color);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c0c0c0;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a0a0a0;
+}
