@@ -23,6 +23,9 @@ from .state_store import (
     get_list_items,
     add_list_item,
     remove_list_item,
+    get_previous_oficina,
+    set_previous_oficina,
+    has_oficina_changed,
 )
 
 
@@ -345,21 +348,41 @@ class FormRenderer:
         oficina_data = self.oficinas.get(oficina_sel, {})
         is_custom = oficina_data.get("editable", False) or oficina_sel == "PERSONALIZADA"
 
+        # Check if oficina has changed - if so, force update fields
+        oficina_changed = has_oficina_changed(oficina_sel)
+
         # Address fields
         for campo in ["Direccion_Oficina", "CP", "Ciudad_Oficina"]:
-            # Auto-fill if not custom
-            if not is_custom and campo not in result:
-                result[campo] = oficina_data.get(campo, "")
-
             field_spec = self.fields.get(campo, {})
             label = field_spec.get("label", campo)
 
+            # Determine the value to display
+            if is_custom:
+                # For custom office, use existing value or empty
+                display_value = result.get(campo, "")
+            elif oficina_changed:
+                # Office changed - use new office data
+                display_value = oficina_data.get(campo, "")
+            else:
+                # Use result value if exists, otherwise use oficina data
+                display_value = result.get(campo) if campo in result else oficina_data.get(campo, "")
+
+            # Generate a unique key that changes when oficina changes for non-custom
+            if is_custom:
+                field_key = get_stable_key(campo)
+            else:
+                # Include oficina in key to force widget refresh when oficina changes
+                field_key = f"field_{campo}_{oficina_sel}"
+
             result[campo] = st.text_input(
                 label,
-                value=result.get(campo, oficina_data.get(campo, "")),
-                key=get_stable_key(campo),
+                value=display_value,
+                key=field_key,
                 disabled=not is_custom
             )
+
+        # Update the tracked oficina after rendering
+        set_previous_oficina(oficina_sel)
 
         return result
 

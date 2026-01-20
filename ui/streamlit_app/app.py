@@ -39,6 +39,112 @@ from ui.streamlit_app.form_renderer import FormRenderer
 PLUGIN_ID = "carta_manifestacion"
 
 
+def create_hash_certificate(hash_info, trace_id: str, client_name: str, user_display_name: str) -> str:
+    """
+    Create a hash certificate in text format
+    Crear un certificado de hash en formato texto
+
+    Args:
+        hash_info: FileHashInfo object
+        trace_id: Document trace ID
+        client_name: Client name
+        user_display_name: User display name
+
+    Returns:
+        Certificate content as string
+    """
+    lines = [
+        "=" * 60,
+        "CERTIFICADO DE HASH - CARTA DE MANIFESTACION",
+        "Forvis Mazars",
+        "=" * 60,
+        "",
+        f"Codigo de Traza: {trace_id}",
+        f"Codigo Hash: {hash_info.hash_code}",
+        "",
+        "-" * 60,
+        "INFORMACION DEL DOCUMENTO",
+        "-" * 60,
+        f"Cliente: {client_name}",
+        f"Usuario: {user_display_name}",
+        f"Fecha de Creacion: {hash_info.creation_timestamp}",
+        f"Tamano del Archivo: {hash_info.file_size:,} bytes",
+        "",
+        "-" * 60,
+        "DETALLES DEL HASH",
+        "-" * 60,
+        f"Algoritmo: {hash_info.algorithm}",
+        "",
+        "Hash de Contenido (SHA-256):",
+        hash_info.content_hash,
+        "",
+        "Hash de Metadatos (SHA-256):",
+        hash_info.metadata_hash,
+        "",
+        "Hash Combinado (SHA-256):",
+        hash_info.combined_hash,
+        "",
+        "-" * 60,
+        "VERIFICACION",
+        "-" * 60,
+        "Este certificado puede utilizarse para verificar la",
+        "integridad y autenticidad del documento generado.",
+        "",
+        "Para verificar el documento:",
+        "1. Calcule el hash SHA-256 del archivo original",
+        "2. Compare con el 'Hash de Contenido' indicado arriba",
+        "3. Si coinciden, el documento no ha sido modificado",
+        "",
+        "=" * 60,
+        f"Generado automaticamente el {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}",
+        "=" * 60,
+    ]
+    return "\n".join(lines)
+
+
+def create_hash_json(hash_info, trace_id: str, client_name: str, user_id: str) -> str:
+    """
+    Create a hash certificate in JSON format
+    Crear un certificado de hash en formato JSON
+
+    Args:
+        hash_info: FileHashInfo object
+        trace_id: Document trace ID
+        client_name: Client name
+        user_id: User ID
+
+    Returns:
+        Certificate content as JSON string
+    """
+    certificate_data = {
+        "certificate_type": "HASH_CERTIFICATE",
+        "version": "1.0",
+        "issuer": "Forvis Mazars - Carta de Manifestacion Generator",
+        "trace_id": trace_id,
+        "hash_code": hash_info.hash_code,
+        "document_info": {
+            "client_name": client_name,
+            "user_id": user_id,
+            "creation_timestamp": hash_info.creation_timestamp,
+            "creation_timestamp_iso": hash_info.creation_timestamp_iso,
+            "file_size_bytes": hash_info.file_size
+        },
+        "hash_details": {
+            "algorithm": hash_info.algorithm,
+            "content_hash": hash_info.content_hash,
+            "metadata_hash": hash_info.metadata_hash,
+            "combined_hash": hash_info.combined_hash
+        },
+        "verification_instructions": {
+            "step_1": "Calculate SHA-256 hash of the original document file",
+            "step_2": "Compare with content_hash in hash_details",
+            "step_3": "If they match, the document has not been modified"
+        },
+        "generated_at": datetime.now().isoformat()
+    }
+    return json.dumps(certificate_data, indent=2, ensure_ascii=False)
+
+
 def init_auth_state():
     """Initialize authentication state / Inicializar estado de autenticacion"""
     if 'authenticated' not in st.session_state:
@@ -840,6 +946,45 @@ def render_main_form():
                             st.code(hash_info.content_hash, language=None)
                             st.markdown("**Hash combinado completo:**")
                             st.code(hash_info.combined_hash, language=None)
+
+                        # Hash download section
+                        st.markdown("### 🔐 Descargar Certificado de Hash")
+
+                        # Create hash certificate content
+                        hash_certificate = create_hash_certificate(
+                            hash_info=hash_info,
+                            trace_id=result.trace_id,
+                            client_name=var_values.get('Nombre_Cliente', ''),
+                            user_display_name=user.display_name
+                        )
+
+                        col_hash_txt, col_hash_json = st.columns(2)
+
+                        with col_hash_txt:
+                            st.download_button(
+                                label="📋 Descargar Hash (TXT)",
+                                data=hash_certificate,
+                                file_name=f"hash_certificado_{hash_info.hash_code}.txt",
+                                mime="text/plain",
+                                key="download_hash_txt",
+                                help="Descargar certificado de hash en formato texto plano"
+                            )
+
+                        with col_hash_json:
+                            hash_json = create_hash_json(
+                                hash_info=hash_info,
+                                trace_id=result.trace_id,
+                                client_name=var_values.get('Nombre_Cliente', ''),
+                                user_id=user.username
+                            )
+                            st.download_button(
+                                label="📄 Descargar Hash (JSON)",
+                                data=hash_json,
+                                file_name=f"hash_certificado_{hash_info.hash_code}.json",
+                                mime="application/json",
+                                key="download_hash_json",
+                                help="Descargar certificado de hash en formato JSON"
+                            )
 
                         # Display generation info
                         st.info(f"⏱️ Tiempo de generacion: {result.duration_ms}ms | Usuario: {user.display_name}")
