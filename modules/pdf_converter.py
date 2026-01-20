@@ -25,14 +25,14 @@ def check_libreoffice_available() -> Tuple[bool, Optional[str]]:
     Returns:
         Tuple of (is_available, path_to_soffice)
     """
-    # Common paths for LibreOffice
-    possible_paths = [
-        "libreoffice",
-        "soffice",
+    # Common absolute paths for LibreOffice (checked first for systemd compatibility)
+    absolute_paths = [
         "/usr/bin/libreoffice",
         "/usr/bin/soffice",
         "/usr/local/bin/libreoffice",
         "/usr/local/bin/soffice",
+        "/snap/bin/libreoffice",
+        "/opt/libreoffice/program/soffice",
         # macOS paths
         "/Applications/LibreOffice.app/Contents/MacOS/soffice",
         # Windows paths
@@ -40,9 +40,16 @@ def check_libreoffice_available() -> Tuple[bool, Optional[str]]:
         r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
     ]
 
-    for path in possible_paths:
-        if shutil.which(path):
+    # First check absolute paths directly (works even without PATH)
+    for path in absolute_paths:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
             return True, path
+
+    # Fallback to PATH-based check
+    for cmd in ["libreoffice", "soffice"]:
+        found = shutil.which(cmd)
+        if found:
+            return True, found
 
     return False, None
 
