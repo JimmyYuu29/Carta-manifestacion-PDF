@@ -170,9 +170,9 @@ def generate_file_hash(
     combined_string = f"{content_hash}:{metadata_hash}:{creation_time.isoformat()}:{doc_type_code}"
     combined_hash = hashlib.sha256(combined_string.encode()).hexdigest()
 
-    # Create short hash code for display with document type prefix
-    # Format: [DOC_TYPE_CODE]-[FIRST 12 CHARS OF HASH] e.g., CM-A1B2C3D4E5F6
-    hash_code = f"{doc_type_code}-{combined_hash[:12].upper()}"
+    # Create full hash code for display with document type prefix
+    # Format: [DOC_TYPE_CODE]-[FULL HASH] e.g., CM-A1B2C3D4E5F6...
+    hash_code = f"{doc_type_code}-{combined_hash.upper()}"
 
     return FileHashInfo(
         hash_code=hash_code,
