@@ -141,6 +141,8 @@ class FileHashInfo(BaseModel):
     combined_hash: str
     user_id: Optional[str] = None
     client_name: Optional[str] = None
+    document_type: Optional[str] = None
+    document_type_display: Optional[str] = None
 
 
 class DocumentGenerationResponse(BaseModel):

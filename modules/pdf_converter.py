@@ -6,10 +6,21 @@ Modulo de Conversion PDF - Convertir archivos DOCX a PDF
 import subprocess
 import os
 import platform
+import io
 from pathlib import Path
 from typing import Optional, Tuple
 import tempfile
 import shutil
+
+# PDF manipulation imports
+try:
+    from PyPDF2 import PdfReader, PdfWriter
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.colors import Color
+    PDF_FOOTER_AVAILABLE = True
+except ImportError:
+    PDF_FOOTER_AVAILABLE = False
 
 
 class PDFConversionError(Exception):
@@ -197,7 +208,154 @@ def get_pdf_conversion_status() -> dict:
             "available": libreoffice_available,
             "path": libreoffice_path
         },
+        "pdf_footer_available": PDF_FOOTER_AVAILABLE,
         "recommended_method": "libreoffice" if libreoffice_available else None,
         "platform": platform.system()
     }
+
+
+def create_hash_footer_overlay(
+    hash_code: str,
+    page_width: float,
+    page_height: float,
+    font_size: int = 8
+) -> io.BytesIO:
+    """
+    Create a PDF overlay with hash code footer
+    Crear una capa PDF con el codigo hash en el pie de pagina
+
+    Args:
+        hash_code: The hash code to display
+        page_width: Width of the page
+        page_height: Height of the page
+        font_size: Font size for the hash code
+
+    Returns:
+        BytesIO buffer containing the overlay PDF
+    """
+    packet = io.BytesIO()
+    c = canvas.Canvas(packet, pagesize=(page_width, page_height))
+
+    # Set font and color (gray for subtle appearance)
+    c.setFont("Helvetica", font_size)
+    c.setFillColor(Color(0.4, 0.4, 0.4, alpha=1))  # Gray color
+
+    # Calculate center position for the hash code
+    text_width = c.stringWidth(hash_code, "Helvetica", font_size)
+    x_position = (page_width - text_width) / 2
+    y_position = 25  # 25 points from bottom
+
+    # Draw the hash code
+    c.drawString(x_position, y_position, hash_code)
+
+    c.save()
+    packet.seek(0)
+    return packet
+
+
+def add_hash_footer_to_pdf(
+    pdf_path: Path,
+    hash_code: str,
+    output_path: Optional[Path] = None,
+    font_size: int = 8
+) -> Path:
+    """
+    Add hash code footer to all pages of a PDF
+    Anadir codigo hash en el pie de pagina a todas las paginas del PDF
+
+    Args:
+        pdf_path: Path to the input PDF
+        hash_code: Hash code to add as footer
+        output_path: Optional output path (defaults to overwrite input)
+        font_size: Font size for the hash code
+
+    Returns:
+        Path to the output PDF
+
+    Raises:
+        PDFConversionError: If footer addition fails
+    """
+    if not PDF_FOOTER_AVAILABLE:
+        raise PDFConversionError(
+            "Las bibliotecas PyPDF2 y reportlab no estan instaladas. "
+            "Instale con: pip install PyPDF2 reportlab"
+        )
+
+    if not pdf_path.exists():
+        raise PDFConversionError(f"Archivo PDF no encontrado: {pdf_path}")
+
+    if output_path is None:
+        output_path = pdf_path
+
+    try:
+        # Read the original PDF
+        reader = PdfReader(str(pdf_path))
+        writer = PdfWriter()
+
+        # Process each page
+        for page_num, page in enumerate(reader.pages):
+            # Get page dimensions
+            media_box = page.mediabox
+            page_width = float(media_box.width)
+            page_height = float(media_box.height)
+
+            # Create footer overlay for this page
+            footer_overlay = create_hash_footer_overlay(
+                hash_code, page_width, page_height, font_size
+            )
+            footer_pdf = PdfReader(footer_overlay)
+            footer_page = footer_pdf.pages[0]
+
+            # Merge footer onto original page
+            page.merge_page(footer_page)
+            writer.add_page(page)
+
+        # Write to temporary file first (in case output_path == pdf_path)
+        temp_output = pdf_path.parent / f"{pdf_path.stem}_temp_footer.pdf"
+        with open(temp_output, "wb") as output_file:
+            writer.write(output_file)
+
+        # Move temp file to final destination
+        shutil.move(str(temp_output), str(output_path))
+
+        return output_path
+
+    except Exception as e:
+        if isinstance(e, PDFConversionError):
+            raise
+        raise PDFConversionError(f"Error al anadir pie de pagina al PDF: {str(e)}")
+
+
+def convert_docx_to_pdf_with_hash(
+    docx_path: Path,
+    hash_code: str,
+    output_path: Optional[Path] = None,
+    method: str = "auto",
+    font_size: int = 8
+) -> Path:
+    """
+    Convert DOCX to PDF and add hash code footer
+    Convertir DOCX a PDF y anadir codigo hash en el pie de pagina
+
+    Args:
+        docx_path: Path to the DOCX file
+        hash_code: Hash code to add as footer
+        output_path: Optional specific output path for PDF
+        method: Conversion method ('auto', 'libreoffice')
+        font_size: Font size for the hash code footer
+
+    Returns:
+        Path to the generated PDF file with hash footer
+
+    Raises:
+        PDFConversionError: If conversion or footer addition fails
+    """
+    # First convert to PDF
+    pdf_path = convert_docx_to_pdf(docx_path, output_path, method)
+
+    # Then add hash footer
+    if PDF_FOOTER_AVAILABLE:
+        pdf_path = add_hash_footer_to_pdf(pdf_path, hash_code, font_size=font_size)
+
+    return pdf_path
 
