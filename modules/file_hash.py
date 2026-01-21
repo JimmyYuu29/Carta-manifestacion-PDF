@@ -24,6 +24,52 @@ class FileHashInfo:
     combined_hash: str
     user_id: Optional[str] = None
     client_name: Optional[str] = None
+    document_type: Optional[str] = None
+    document_type_display: Optional[str] = None
+
+
+# Document type definitions / Definiciones de tipos de documento
+DOCUMENT_TYPES = {
+    "carta_manifestacion": {
+        "code": "CM",
+        "display_name": "Carta de Manifestación",
+        "description": "Carta de manifestación de la dirección para auditoría"
+    },
+    "informe_auditoria": {
+        "code": "IA",
+        "display_name": "Informe de Auditoría",
+        "description": "Informe oficial de auditoría"
+    },
+    "carta_encargo": {
+        "code": "CE",
+        "display_name": "Carta de Encargo",
+        "description": "Carta de encargo de auditoría"
+    },
+    "informe_revision": {
+        "code": "IR",
+        "display_name": "Informe de Revisión",
+        "description": "Informe de revisión limitada"
+    },
+    "otros": {
+        "code": "OT",
+        "display_name": "Otros Documentos",
+        "description": "Otros documentos de auditoría"
+    }
+}
+
+
+def get_document_type_info(document_type: str) -> Dict[str, str]:
+    """
+    Get document type information
+    Obtener información del tipo de documento
+
+    Args:
+        document_type: Document type identifier
+
+    Returns:
+        Dictionary with document type info
+    """
+    return DOCUMENT_TYPES.get(document_type, DOCUMENT_TYPES["otros"])
 
 
 def generate_content_hash(file_path: Path) -> str:
@@ -68,6 +114,7 @@ def generate_file_hash(
     creation_time: Optional[datetime] = None,
     user_id: Optional[str] = None,
     client_name: Optional[str] = None,
+    document_type: Optional[str] = None,
     additional_metadata: Optional[Dict[str, Any]] = None
 ) -> FileHashInfo:
     """
@@ -79,6 +126,7 @@ def generate_file_hash(
         creation_time: Optional creation timestamp (defaults to now)
         user_id: Optional user identifier
         client_name: Optional client name
+        document_type: Optional document type identifier (e.g., 'carta_manifestacion')
         additional_metadata: Optional additional metadata to include
 
     Returns:
@@ -93,12 +141,19 @@ def generate_file_hash(
     # Generate content hash
     content_hash = generate_content_hash(file_path)
 
+    # Get document type info
+    doc_type_info = get_document_type_info(document_type) if document_type else get_document_type_info("otros")
+    doc_type_code = doc_type_info["code"]
+    doc_type_display = doc_type_info["display_name"]
+
     # Build metadata for hashing
     metadata = {
         "creation_timestamp": creation_time.isoformat(),
         "file_name": file_path.name,
         "file_size": file_size,
-        "content_hash": content_hash
+        "content_hash": content_hash,
+        "document_type": document_type or "otros",
+        "document_type_code": doc_type_code
     }
 
     if user_id:
@@ -111,12 +166,13 @@ def generate_file_hash(
     # Generate metadata hash
     metadata_hash = generate_metadata_hash(metadata)
 
-    # Generate combined hash (content + metadata + timestamp)
-    combined_string = f"{content_hash}:{metadata_hash}:{creation_time.isoformat()}"
+    # Generate combined hash (content + metadata + timestamp + document_type)
+    combined_string = f"{content_hash}:{metadata_hash}:{creation_time.isoformat()}:{doc_type_code}"
     combined_hash = hashlib.sha256(combined_string.encode()).hexdigest()
 
-    # Create short hash code for display (first 16 characters of combined hash)
-    hash_code = combined_hash[:16].upper()
+    # Create short hash code for display with document type prefix
+    # Format: [DOC_TYPE_CODE]-[FIRST 12 CHARS OF HASH] e.g., CM-A1B2C3D4E5F6
+    hash_code = f"{doc_type_code}-{combined_hash[:12].upper()}"
 
     return FileHashInfo(
         hash_code=hash_code,
@@ -128,7 +184,9 @@ def generate_file_hash(
         metadata_hash=metadata_hash,
         combined_hash=combined_hash,
         user_id=user_id,
-        client_name=client_name
+        client_name=client_name,
+        document_type=document_type or "otros",
+        document_type_display=doc_type_display
     )
 
 
@@ -165,6 +223,7 @@ def format_hash_for_display(hash_info: FileHashInfo) -> str:
     """
     lines = [
         f"Codigo de Hash: {hash_info.hash_code}",
+        f"Tipo de Documento: {hash_info.document_type_display or 'No especificado'}",
         f"Algoritmo: {hash_info.algorithm}",
         f"Fecha de Creacion: {hash_info.creation_timestamp}",
         f"Tamano del Archivo: {hash_info.file_size:,} bytes",
@@ -206,8 +265,11 @@ def generate_audit_record(
         "hash_code": hash_info.hash_code,
         "content_hash": hash_info.content_hash,
         "combined_hash": hash_info.combined_hash,
+        "metadata_hash": hash_info.metadata_hash,
         "file_size": hash_info.file_size,
-        "algorithm": hash_info.algorithm
+        "algorithm": hash_info.algorithm,
+        "document_type": hash_info.document_type,
+        "document_type_display": hash_info.document_type_display
     }
 
     if hash_info.user_id:
@@ -218,3 +280,52 @@ def generate_audit_record(
         record["additional_info"] = additional_info
 
     return record
+
+
+def create_full_metadata_record(
+    hash_info: FileHashInfo,
+    form_data: Dict[str, Any],
+    trace_id: str,
+    output_file_name: str
+) -> Dict[str, Any]:
+    """
+    Create a complete metadata record for storage and verification
+    Crear un registro de metadatos completo para almacenamiento y verificación
+
+    Args:
+        hash_info: FileHashInfo object
+        form_data: Original form data used to generate the document
+        trace_id: Unique trace ID for the document
+        output_file_name: Name of the generated output file
+
+    Returns:
+        Complete metadata dictionary for JSON storage
+    """
+    return {
+        "version": "1.0",
+        "trace_id": trace_id,
+        "hash_info": {
+            "hash_code": hash_info.hash_code,
+            "algorithm": hash_info.algorithm,
+            "content_hash": hash_info.content_hash,
+            "metadata_hash": hash_info.metadata_hash,
+            "combined_hash": hash_info.combined_hash,
+            "file_size": hash_info.file_size
+        },
+        "document_info": {
+            "type": hash_info.document_type,
+            "type_display": hash_info.document_type_display,
+            "file_name": output_file_name,
+            "creation_timestamp": hash_info.creation_timestamp,
+            "creation_timestamp_iso": hash_info.creation_timestamp_iso
+        },
+        "user_info": {
+            "user_id": hash_info.user_id,
+            "client_name": hash_info.client_name
+        },
+        "form_data": form_data,
+        "verification_instructions": {
+            "es": "Para verificar este documento, use el código de hash en el verificador oficial de Forvis Mazars.",
+            "en": "To verify this document, use the hash code in the official Forvis Mazars verifier."
+        }
+    }

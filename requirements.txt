@@ -19,3 +19,7 @@ uvicorn[standard]>=0.27.0
 
 # Security (for API authentication)
 python-multipart>=0.0.6
+
+# PDF processing (for adding footer hash)
+PyPDF2>=3.0.0
+reportlab>=4.0.0

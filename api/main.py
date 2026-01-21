@@ -31,10 +31,12 @@ from modules.auth import (
 )
 from modules.generate import generate_from_form
 from modules.plugin_loader import load_plugin
-from modules.file_hash import generate_file_hash
+from modules.file_hash import generate_file_hash, create_full_metadata_record
 from modules.pdf_converter import (
-    convert_docx_to_pdf, get_pdf_conversion_status, PDFConversionError
+    convert_docx_to_pdf, get_pdf_conversion_status, PDFConversionError,
+    add_hash_footer_to_pdf, PDF_FOOTER_AVAILABLE
 )
+import json
 
 
 # Plugin configuration
@@ -231,22 +233,43 @@ async def generate_document(request: DocumentGenerationRequest, user=Depends(get
         )
 
         if result.success and result.output_path:
-            # Generate file hash
+            # Generate file hash with document type
             creation_time = datetime.now()
             hash_info = generate_file_hash(
                 file_path=result.output_path,
                 creation_time=creation_time,
                 user_id=user.username,
-                client_name=request.Nombre_Cliente
+                client_name=request.Nombre_Cliente,
+                document_type=PLUGIN_ID  # Use plugin ID as document type
             )
 
-            # Store document info
+            # Create user output directory for metadata storage
+            user_output_dir = PROJECT_ROOT / "output" / user.username
+            user_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Create full metadata record and save to user folder
+            metadata_record = create_full_metadata_record(
+                hash_info=hash_info,
+                form_data=form_data,
+                trace_id=result.trace_id,
+                output_file_name=result.output_path.name
+            )
+
+            # Save metadata JSON file to user folder root
+            metadata_filename = f"metadata_{hash_info.hash_code}_{result.trace_id[:8]}.json"
+            metadata_path = user_output_dir / metadata_filename
+            with open(metadata_path, "w", encoding="utf-8") as f:
+                json.dump(metadata_record, f, ensure_ascii=False, indent=2, default=str)
+
+            # Store document info including form_data for future reference
             generated_documents[result.trace_id] = {
                 "output_path": result.output_path,
                 "hash_info": hash_info,
                 "user": user,
                 "client_name": request.Nombre_Cliente,
-                "creation_time": creation_time
+                "creation_time": creation_time,
+                "form_data": form_data,
+                "metadata_path": metadata_path
             }
 
             # Get user permissions
@@ -273,7 +296,9 @@ async def generate_document(request: DocumentGenerationRequest, user=Depends(get
                     metadata_hash=hash_info.metadata_hash,
                     combined_hash=hash_info.combined_hash,
                     user_id=hash_info.user_id,
-                    client_name=hash_info.client_name
+                    client_name=hash_info.client_name,
+                    document_type=hash_info.document_type,
+                    document_type_display=hash_info.document_type_display
                 ),
                 duration_ms=result.duration_ms,
                 download_links=download_links
@@ -330,6 +355,15 @@ async def download_document(trace_id: str, format: str, user=Depends(get_current
 
         try:
             pdf_path = convert_docx_to_pdf(output_path)
+
+            # Add hash footer to PDF for normal users (non-PRO accounts)
+            if PDF_FOOTER_AVAILABLE:
+                try:
+                    add_hash_footer_to_pdf(pdf_path, hash_info.hash_code)
+                except Exception as footer_error:
+                    # Log error but continue - footer is optional
+                    print(f"Warning: Could not add hash footer to PDF: {footer_error}")
+
             return FileResponse(
                 path=str(pdf_path),
                 filename=f"{base_filename}.pdf",
@@ -364,7 +398,7 @@ async def get_system_status():
         pdf_conversion_available=pdf_status["pdf_conversion_available"],
         libreoffice_path=pdf_status["libreoffice"]["path"],
         platform=pdf_status["platform"],
-        version="1.0.0"
+        version="1.1.0"  # Updated version with hash footer feature
     )
 
 
