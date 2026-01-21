@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 import json
 import io
+import hashlib
 import pandas as pd
 from docx import Document
 
@@ -143,6 +144,60 @@ def create_hash_json(hash_info, trace_id: str, client_name: str, user_id: str) -
         "generated_at": datetime.now().isoformat()
     }
     return json.dumps(certificate_data, indent=2, ensure_ascii=False)
+
+
+def generate_form_hash(form_data: dict, user_id: str) -> dict:
+    """
+    Generate a hash code from form data before document generation
+    Generar un codigo hash a partir de los datos del formulario antes de la generacion del documento
+
+    Args:
+        form_data: Dictionary with form data
+        user_id: User identifier
+
+    Returns:
+        Dictionary with hash_code and hash details
+    """
+    timestamp = datetime.now()
+    timestamp_iso = timestamp.isoformat()
+
+    # Serialize form data for hashing (sort keys for consistency)
+    serializable_data = {}
+    for key, value in form_data.items():
+        if isinstance(value, (date, datetime)):
+            serializable_data[key] = value.strftime("%Y-%m-%d")
+        elif isinstance(value, list):
+            serializable_data[key] = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        else:
+            serializable_data[key] = str(value) if value is not None else ""
+
+    form_json = json.dumps(serializable_data, sort_keys=True, ensure_ascii=False)
+    form_hash = hashlib.sha256(form_json.encode('utf-8')).hexdigest()
+
+    # Create metadata hash
+    metadata = {
+        "timestamp": timestamp_iso,
+        "user_id": user_id,
+        "doc_type": "CM"
+    }
+    metadata_json = json.dumps(metadata, sort_keys=True)
+    metadata_hash = hashlib.sha256(metadata_json.encode('utf-8')).hexdigest()
+
+    # Combined hash
+    combined_string = f"{form_hash}:{metadata_hash}:{timestamp_iso}:CM"
+    combined_hash = hashlib.sha256(combined_string.encode('utf-8')).hexdigest()
+
+    # Format hash code: CM-XXXXXXXXXXXX (first 12 chars uppercase)
+    hash_code = f"CM-{combined_hash[:12].upper()}"
+
+    return {
+        "hash_code": hash_code,
+        "form_hash": form_hash,
+        "metadata_hash": metadata_hash,
+        "combined_hash": combined_hash,
+        "timestamp": timestamp.strftime("%d/%m/%Y %H:%M:%S"),
+        "timestamp_iso": timestamp_iso
+    }
 
 
 def init_auth_state():
@@ -302,6 +357,11 @@ def render_user_info_sidebar():
             st.success("✅ Conversion PDF disponible")
         else:
             st.warning("⚠️ Conversion PDF no disponible (LibreOffice no instalado)")
+
+        # Hash validator link
+        st.markdown("---")
+        st.markdown("### Herramientas")
+        st.markdown("[🔍 Validador de Hash](http://10.32.1.150:9000/)")
 
         # Logout button
         st.markdown("---")
@@ -890,17 +950,79 @@ def render_main_form():
             help="Descarga los metadatos en formato Excel"
         )
 
-    # Generate button / Boton de generacion
-    st.markdown("---")
+    # Initialize confirmation state
+    if 'data_confirmed' not in st.session_state:
+        st.session_state.data_confirmed = False
+    if 'confirmed_hash_info' not in st.session_state:
+        st.session_state.confirmed_hash_info = None
+    if 'confirmed_form_data' not in st.session_state:
+        st.session_state.confirmed_form_data = None
 
-    if st.button("🚀 Generar Carta de Manifestacion", type="primary"):
+    # Step 1: Confirm data button / Paso 1: Boton confirmar datos
+    st.markdown("---")
+    st.subheader("Paso 1: Confirmar los Datos")
+
+    if st.button("✅ Confirmar los Datos", type="primary", key="confirm_data_btn"):
         if missing_fields:
             st.error(f"⚠️ Por favor completa los siguientes campos obligatorios: {', '.join(missing_fields)}")
+            st.session_state.data_confirmed = False
         else:
+            with st.spinner("Validando y generando hash..."):
+                # Combine all data
+                all_data = {**var_values, **cond_values}
+
+                # Generate hash from form data
+                hash_info = generate_form_hash(all_data, user.username)
+
+                # Store in session state
+                st.session_state.data_confirmed = True
+                st.session_state.confirmed_hash_info = hash_info
+                st.session_state.confirmed_form_data = all_data
+
+                st.success("✅ Datos confirmados correctamente!")
+
+    # Display hash info if data is confirmed
+    if st.session_state.data_confirmed and st.session_state.confirmed_hash_info:
+        hash_info = st.session_state.confirmed_hash_info
+
+        st.markdown("### 🔖 Hash de Verificacion Generado")
+
+        col_hash_display, col_hash_details = st.columns([1, 1])
+
+        with col_hash_display:
+            st.markdown("**Codigo Hash:**")
+            st.code(hash_info["hash_code"], language=None)
+            st.caption("Este codigo se insertara en el documento generado.")
+
+        with col_hash_details:
+            st.markdown("**Fecha/Hora de Confirmacion:**")
+            st.code(hash_info["timestamp"], language=None)
+
+        with st.expander("Ver detalles completos del hash"):
+            st.markdown("**Hash de formulario:**")
+            st.code(hash_info["form_hash"], language=None)
+            st.markdown("**Hash de metadatos:**")
+            st.code(hash_info["metadata_hash"], language=None)
+            st.markdown("**Hash combinado:**")
+            st.code(hash_info["combined_hash"], language=None)
+
+        # Button to reset and modify data
+        if st.button("🔄 Modificar Datos", key="reset_confirmation_btn"):
+            st.session_state.data_confirmed = False
+            st.session_state.confirmed_hash_info = None
+            st.session_state.confirmed_form_data = None
+            st.rerun()
+
+        # Step 2: Generate document button / Paso 2: Boton generar documento
+        st.markdown("---")
+        st.subheader("Paso 2: Generar Carta de Manifestacion")
+
+        if st.button("🚀 Generar Carta de Manifestacion", type="primary", key="generate_doc_btn"):
             with st.spinner("Generando carta..."):
                 try:
-                    # Combine all data
-                    all_data = {**var_values, **cond_values}
+                    # Use confirmed form data with hash included
+                    all_data = dict(st.session_state.confirmed_form_data)
+                    all_data['hash'] = hash_info["hash_code"]
 
                     # Generate document
                     result = generate_from_form(
@@ -914,9 +1036,9 @@ def render_main_form():
                     if result.success and result.output_path:
                         st.success("✅ Carta generada exitosamente!")
 
-                        # Generate file hash
+                        # Generate file hash for the generated document
                         creation_time = datetime.now()
-                        hash_info = generate_file_hash(
+                        file_hash_info = generate_file_hash(
                             file_path=result.output_path,
                             creation_time=creation_time,
                             user_id=user.username,
@@ -924,67 +1046,11 @@ def render_main_form():
                         )
 
                         # Display trace code and hash
-                        st.markdown("### 🔖 Codigo de Traza y Hash")
+                        st.markdown("### 🔖 Codigo de Traza")
 
-                        col_trace, col_hash = st.columns(2)
-
-                        with col_trace:
-                            st.markdown("**Codigo de Traza:**")
-                            st.code(result.trace_id, language=None)
-                            st.caption("Este codigo identifica de forma unica este documento generado.")
-
-                        with col_hash:
-                            st.markdown("**Codigo Hash de Verificacion:**")
-                            st.code(hash_info.hash_code, language=None)
-                            st.caption("Este hash verifica la integridad del documento.")
-
-                        # Expandable hash details
-                        with st.expander("Ver detalles completos del hash"):
-                            st.text(format_hash_for_display(hash_info))
-                            st.markdown("---")
-                            st.markdown("**Hash completo de contenido:**")
-                            st.code(hash_info.content_hash, language=None)
-                            st.markdown("**Hash combinado completo:**")
-                            st.code(hash_info.combined_hash, language=None)
-
-                        # Hash download section
-                        st.markdown("### 🔐 Descargar Certificado de Hash")
-
-                        # Create hash certificate content
-                        hash_certificate = create_hash_certificate(
-                            hash_info=hash_info,
-                            trace_id=result.trace_id,
-                            client_name=var_values.get('Nombre_Cliente', ''),
-                            user_display_name=user.display_name
-                        )
-
-                        col_hash_txt, col_hash_json = st.columns(2)
-
-                        with col_hash_txt:
-                            st.download_button(
-                                label="📋 Descargar Hash (TXT)",
-                                data=hash_certificate,
-                                file_name=f"hash_certificado_{hash_info.hash_code}.txt",
-                                mime="text/plain",
-                                key="download_hash_txt",
-                                help="Descargar certificado de hash en formato texto plano"
-                            )
-
-                        with col_hash_json:
-                            hash_json = create_hash_json(
-                                hash_info=hash_info,
-                                trace_id=result.trace_id,
-                                client_name=var_values.get('Nombre_Cliente', ''),
-                                user_id=user.username
-                            )
-                            st.download_button(
-                                label="📄 Descargar Hash (JSON)",
-                                data=hash_json,
-                                file_name=f"hash_certificado_{hash_info.hash_code}.json",
-                                mime="application/json",
-                                key="download_hash_json",
-                                help="Descargar certificado de hash en formato JSON"
-                            )
+                        st.markdown("**Codigo de Traza:**")
+                        st.code(result.trace_id, language=None)
+                        st.caption("Este codigo identifica de forma unica este documento generado.")
 
                         # Display generation info
                         st.info(f"⏱️ Tiempo de generacion: {result.duration_ms}ms | Usuario: {user.display_name}")
@@ -993,12 +1059,12 @@ def render_main_form():
                         with open(result.output_path, 'rb') as f:
                             doc_bytes = f.read()
 
-                        base_filename = f"Carta_Manifestacion_{var_values['Nombre_Cliente'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}_{hash_info.hash_code[:8]}"
+                        base_filename = f"Carta_Manifestacion_{var_values['Nombre_Cliente'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}_{hash_info['hash_code'][:8]}"
 
-                        # Download section based on user permissions
+                        # Download section
                         st.markdown("### 📥 Descargar Documento")
 
-                        download_cols = st.columns(2 if permissions["can_download_word"] else 1)
+                        download_cols = st.columns(3 if permissions["can_download_word"] else 2)
 
                         # PDF download (available for all users)
                         with download_cols[0]:
@@ -1007,7 +1073,7 @@ def render_main_form():
                             pdf_status = get_pdf_conversion_status()
                             if pdf_status["pdf_conversion_available"]:
                                 try:
-                                    # Convert to PDF
+                                    # Convert to PDF using LibreOffice (exact rendering of Word)
                                     pdf_path = convert_docx_to_pdf(result.output_path)
                                     with open(pdf_path, 'rb') as f:
                                         pdf_bytes = f.read()
@@ -1037,8 +1103,67 @@ def render_main_form():
                                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                     key="download_word"
                                 )
+                            hash_col_index = 2
                         else:
                             st.info("💡 Los usuarios Pro pueden descargar tambien en formato Word editable.")
+                            hash_col_index = 1
+
+                        # Hash certificate download
+                        with download_cols[hash_col_index]:
+                            st.markdown("**Certificado de Hash**")
+
+                            # Create hash certificate content using confirmed hash
+                            class HashInfoWrapper:
+                                def __init__(self, hash_dict, file_hash):
+                                    self.hash_code = hash_dict["hash_code"]
+                                    self.content_hash = file_hash.content_hash
+                                    self.metadata_hash = hash_dict["metadata_hash"]
+                                    self.combined_hash = hash_dict["combined_hash"]
+                                    self.creation_timestamp = hash_dict["timestamp"]
+                                    self.creation_timestamp_iso = hash_dict["timestamp_iso"]
+                                    self.file_size = file_hash.file_size
+                                    self.algorithm = "SHA-256"
+
+                            wrapped_hash = HashInfoWrapper(hash_info, file_hash_info)
+
+                            hash_certificate = create_hash_certificate(
+                                hash_info=wrapped_hash,
+                                trace_id=result.trace_id,
+                                client_name=var_values.get('Nombre_Cliente', ''),
+                                user_display_name=user.display_name
+                            )
+
+                            st.download_button(
+                                label="📋 Descargar Hash (TXT)",
+                                data=hash_certificate,
+                                file_name=f"hash_certificado_{hash_info['hash_code']}.txt",
+                                mime="text/plain",
+                                key="download_hash_txt",
+                                help="Descargar certificado de hash en formato texto plano"
+                            )
+
+                            hash_json = create_hash_json(
+                                hash_info=wrapped_hash,
+                                trace_id=result.trace_id,
+                                client_name=var_values.get('Nombre_Cliente', ''),
+                                user_id=user.username
+                            )
+                            st.download_button(
+                                label="📄 Descargar Hash (JSON)",
+                                data=hash_json,
+                                file_name=f"hash_certificado_{hash_info['hash_code']}.json",
+                                mime="application/json",
+                                key="download_hash_json",
+                                help="Descargar certificado de hash en formato JSON"
+                            )
+
+                        # Reset confirmation after successful generation
+                        st.markdown("---")
+                        if st.button("🔄 Generar Nueva Carta", key="new_generation_btn"):
+                            st.session_state.data_confirmed = False
+                            st.session_state.confirmed_hash_info = None
+                            st.session_state.confirmed_form_data = None
+                            st.rerun()
 
                     else:
                         st.error(f"❌ Error al generar la carta: {result.error}")
