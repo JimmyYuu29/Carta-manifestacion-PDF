@@ -187,8 +187,8 @@ def generate_form_hash(form_data: dict, user_id: str) -> dict:
     combined_string = f"{form_hash}:{metadata_hash}:{timestamp_iso}:CM"
     combined_hash = hashlib.sha256(combined_string.encode('utf-8')).hexdigest()
 
-    # Format hash code: CM-XXXXXXXXXXXX (first 12 chars uppercase)
-    hash_code = f"CM-{combined_hash[:12].upper()}"
+    # Format hash code: CM-[FULL HASH] (complete hash uppercase)
+    hash_code = f"CM-{combined_hash.upper()}"
 
     return {
         "hash_code": hash_code,
