@@ -118,7 +118,7 @@ class DocxRenderer:
                 parent.remove(el)
 
     def _process_document(self, doc: Document, context: dict, conditionals: dict) -> None:
-        """Process all paragraphs and tables / Procesar todos los parrafos y tablas"""
+        """Process all paragraphs, tables, headers and footers / Procesar todos los parrafos, tablas, encabezados y pies de pagina"""
         # Process paragraphs
         for paragraph in doc.paragraphs:
             original_text = paragraph.text
@@ -140,6 +140,44 @@ class DocxRenderer:
                             new_text = self._replace_variables(original_text, context, conditionals)
                             if new_text != original_text:
                                 paragraph.text = new_text
+
+        # Process headers and footers in all sections
+        for section in doc.sections:
+            # Process header
+            if section.header:
+                for paragraph in section.header.paragraphs:
+                    original_text = paragraph.text
+                    if original_text.strip():
+                        new_text = self._replace_variables(original_text, context, conditionals)
+                        if new_text != original_text:
+                            paragraph.text = new_text
+                for table in section.header.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            for paragraph in cell.paragraphs:
+                                original_text = paragraph.text
+                                if original_text.strip():
+                                    new_text = self._replace_variables(original_text, context, conditionals)
+                                    if new_text != original_text:
+                                        paragraph.text = new_text
+
+            # Process footer
+            if section.footer:
+                for paragraph in section.footer.paragraphs:
+                    original_text = paragraph.text
+                    if original_text.strip():
+                        new_text = self._replace_variables(original_text, context, conditionals)
+                        if new_text != original_text:
+                            paragraph.text = new_text
+                for table in section.footer.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            for paragraph in cell.paragraphs:
+                                original_text = paragraph.text
+                                if original_text.strip():
+                                    new_text = self._replace_variables(original_text, context, conditionals)
+                                    if new_text != original_text:
+                                        paragraph.text = new_text
 
     def _replace_variables(self, text: str, variables: dict, conditionals: dict) -> str:
         """Replace variables and process conditionals / Reemplazar variables y procesar condicionales"""
