@@ -229,3 +229,40 @@ def is_field_visible(field_name: str) -> bool:
         True if field is visible
     """
     return st.session_state.field_visibility.get(field_name, True)
+
+
+def get_previous_oficina() -> Optional[str]:
+    """
+    Get the previously selected oficina
+    Obtener la oficina seleccionada anteriormente
+
+    Returns:
+        Previous oficina value or None
+    """
+    return st.session_state.get("previous_oficina", None)
+
+
+def set_previous_oficina(oficina: str) -> None:
+    """
+    Set the previously selected oficina
+    Establecer la oficina seleccionada anteriormente
+
+    Args:
+        oficina: Office name to store
+    """
+    st.session_state.previous_oficina = oficina
+
+
+def has_oficina_changed(current_oficina: str) -> bool:
+    """
+    Check if oficina selection has changed
+    Verificar si la seleccion de oficina ha cambiado
+
+    Args:
+        current_oficina: Current office selection
+
+    Returns:
+        True if oficina has changed
+    """
+    previous = get_previous_oficina()
+    return previous is not None and previous != current_oficina
