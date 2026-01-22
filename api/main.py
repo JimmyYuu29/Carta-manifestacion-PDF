@@ -37,6 +37,15 @@ from modules.pdf_converter import (
     add_hash_footer_to_pdf, PDF_FOOTER_AVAILABLE
 )
 import json
+import requests
+
+
+# ==================== Verification System Integration ====================
+# URL of the Hash Verification System API
+VERIFICATION_SYSTEM_URL = "http://localhost:9000/api/register"
+# Set to False to disable auto-registration (useful for testing without verification system)
+AUTO_REGISTER_TO_VERIFICATION = True
+
 
 
 # Plugin configuration
@@ -73,6 +82,77 @@ if static_path.exists():
 
 
 # ==================== Helper Functions ====================
+
+def register_to_verification_system(metadata_record: dict) -> dict:
+    """
+    Register document to the Hash Verification System.
+    Registrar documento en el Sistema de Verificación de Hash.
+
+    Args:
+        metadata_record: The complete metadata record from create_full_metadata_record()
+
+    Returns:
+        Dictionary with success status and message
+    """
+    if not AUTO_REGISTER_TO_VERIFICATION:
+        return {"success": False, "message": "Auto-registration disabled"}
+
+    try:
+        # Prepare payload for verification system
+        payload = {
+            "trace_id": metadata_record.get("trace_id"),
+            "hash_info": {
+                "hash_code": metadata_record["hash_info"]["hash_code"],
+                "content_hash": metadata_record["hash_info"]["content_hash"],
+                "metadata_hash": metadata_record["hash_info"].get("metadata_hash", ""),
+                "combined_hash": metadata_record["hash_info"].get("combined_hash", ""),
+                "file_size": metadata_record["hash_info"]["file_size"],
+                "algorithm": metadata_record["hash_info"]["algorithm"]
+            },
+            "document_info": {
+                "type": metadata_record["document_info"]["type"],
+                "type_display": metadata_record["document_info"]["type_display"],
+                "file_name": metadata_record["document_info"]["file_name"],
+                "creation_timestamp": metadata_record["document_info"]["creation_timestamp"],
+                "creation_timestamp_iso": metadata_record["document_info"]["creation_timestamp_iso"]
+            },
+            "user_info": {
+                "user_id": metadata_record["user_info"]["user_id"] or "carta_manifestacion_app",
+                "client_name": metadata_record["user_info"]["client_name"] or ""
+            },
+            "form_data": metadata_record.get("form_data", {})
+        }
+
+        # Send POST request to verification system
+        response = requests.post(
+            VERIFICATION_SYSTEM_URL,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10  # 10 second timeout
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            print(f"✅ Document registered to verification system: {result.get('path', 'N/A')}")
+            return {"success": True, "message": "Registered successfully", "path": result.get("path")}
+        elif response.status_code == 409:
+            # Already registered, not an error
+            print(f"ℹ️ Document already registered in verification system")
+            return {"success": True, "message": "Already registered"}
+        else:
+            print(f"⚠️ Failed to register to verification system: {response.status_code} - {response.text}")
+            return {"success": False, "message": f"HTTP {response.status_code}: {response.text}"}
+
+    except requests.exceptions.ConnectionError:
+        print(f"⚠️ Verification system not reachable at {VERIFICATION_SYSTEM_URL}")
+        return {"success": False, "message": "Verification system not reachable"}
+    except requests.exceptions.Timeout:
+        print(f"⚠️ Verification system request timed out")
+        return {"success": False, "message": "Request timed out"}
+    except Exception as e:
+        print(f"⚠️ Error registering to verification system: {str(e)}")
+        return {"success": False, "message": str(e)}
+
 
 def get_current_user(authorization: Optional[str] = Header(None)):
     """
@@ -261,6 +341,15 @@ async def generate_document(request: DocumentGenerationRequest, user=Depends(get
             with open(metadata_path, "w", encoding="utf-8") as f:
                 json.dump(metadata_record, f, ensure_ascii=False, indent=2, default=str)
 
+            # ============ Register to Verification System ============
+            # Automatically register the document to the central verification system
+            verification_result = register_to_verification_system(metadata_record)
+            if verification_result["success"]:
+                print(f"✅ Document {hash_info.hash_code} registered to verification system")
+            else:
+                print(f"⚠️ Could not register to verification system: {verification_result['message']}")
+            # ==========================================================
+
             # Store document info including form_data for future reference
             generated_documents[result.trace_id] = {
                 "output_path": result.output_path,
@@ -269,8 +358,10 @@ async def generate_document(request: DocumentGenerationRequest, user=Depends(get
                 "client_name": request.Nombre_Cliente,
                 "creation_time": creation_time,
                 "form_data": form_data,
-                "metadata_path": metadata_path
+                "metadata_path": metadata_path,
+                "verification_registered": verification_result["success"]
             }
+
 
             # Get user permissions
             permissions = get_user_permissions(user)
